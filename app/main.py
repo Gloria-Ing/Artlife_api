@@ -21,28 +21,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Artlife User & Authentication API",
-    description="""
-# 🎨 Artlife Authentication & Account Service
-
-A high-performance FastAPI service connected to PostgreSQL with comprehensive endpoint documentation and CORS enabled.
-
----
-
-### 🚀 Key Features:
-* **Account Creation**: Register accounts with `id`, `firstname`, `lastname`, `username`, `phone`, `email`, and `password`.
-* **Flexible Login**: Authenticate with either **Username** OR **Phone Number** along with password.
-* **PostgreSQL Integration**: Seamless connection managed via `.env` with no hardcoded credentials.
-* **CORS Support**: Configured to accept requests from all origins (`*`).
-* **Secure BCrypt Hashing**: Passwords stored as industry-standard salted BCrypt hashes.
-* **JWT Authentication**: Fast and stateless Bearer tokens for authenticated endpoints.
-
----
-
-### 📖 Documentation Links:
-* **Interactive Swagger UI**: [/docs](/docs)
-* **ReDoc Documentation**: [/redoc](/redoc)
-* **OpenAPI Specification**: [/openapi.json](/openapi.json)
-    """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
