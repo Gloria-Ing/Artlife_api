@@ -1,0 +1,3 @@
+"""
+Artlife API Application Package
+"""
