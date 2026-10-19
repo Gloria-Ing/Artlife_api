@@ -1,7 +1,7 @@
 import sys
 from fastapi.testclient import TestClient
 from app.main import app
-from app.main import ensure_account_schema
+from app.main import ensure_database_schema
 from app.database import engine, Base
 
 def run_tests():
@@ -11,7 +11,7 @@ def run_tests():
 
     # Initialize tables
     Base.metadata.create_all(bind=engine)
-    ensure_account_schema()
+    ensure_database_schema()
     client = TestClient(app)
 
     # 1. Health check
@@ -171,6 +171,8 @@ def run_tests():
     product_payload = {
         "title": f"Sunset Over Table Mountain {ts}",
         "series": "Cape Light Studies",
+        "price": "1250.00",
+        "image_url": "https://example.com/art/sunset.jpg",
         "category": "abstract",
         "medium": "Acrylic on canvas",
         "dimensions": "60cm x 90cm",
@@ -202,6 +204,8 @@ def run_tests():
     created_product = res.json()
     assert created_product["title"] == product_payload["title"]
     assert created_product["created_by_id"] == created_admin["id"]
+    assert created_product["price"] == product_payload["price"]
+    assert created_product["image_url"] == product_payload["image_url"]
     assert created_product["status"] == "Available"
     assert created_product["colors"] == product_payload["colors"]
     print("-> Admin-only gallery product creation passed successfully!")
@@ -238,6 +242,8 @@ def run_tests():
     assert "username" not in account_create_schema["properties"]
     assert "status" in product_create_schema["properties"]
     assert "colors" in product_create_schema["properties"]
+    assert "price" in product_create_schema["properties"]
+    assert "image_url" in product_create_schema["properties"]
     print("-> Documentation paths present in OpenAPI schema!")
 
     print("\n==================================================")

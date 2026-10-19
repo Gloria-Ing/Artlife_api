@@ -56,6 +56,8 @@ class GalleryProduct(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     title = Column(String(150), nullable=False, index=True)
     series = Column(String(150), nullable=False)
+    price = Column(Numeric(10, 2), nullable=True)
+    image_url = Column(String(500), nullable=True)
     category = Column(String(50), nullable=False)
     year = Column(String(20), nullable=False)
     medium = Column(String(120), nullable=False)

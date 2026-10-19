@@ -58,6 +58,8 @@ def create_gallery_product(
     product = GalleryProduct(
         title=product_in.title,
         series=product_in.series,
+        price=product_in.price,
+        image_url=product_in.image_url,
         category=product_in.category,
         year=product_in.year,
         medium=product_in.medium,

@@ -251,6 +251,21 @@ class GalleryProductCreate(BaseModel):
         description="Artwork series or collection",
         examples=["Rhythm Studies"],
     )
+    price: Decimal = Field(
+        ...,
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Selling price for the gallery product",
+        examples=["1250.00"],
+    )
+    image_url: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Public image URL for the gallery product",
+        examples=["https://example.com/art/embers-in-motion.jpg"],
+    )
     category: GalleryCategory = Field(
         ...,
         description="Gallery category used by the frontend filters",
@@ -301,7 +316,7 @@ class GalleryProductCreate(BaseModel):
     @classmethod
     def trim_gallery_product_strings(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            for key in ["title", "series", "category", "year", "medium", "dimensions", "status", "story"]:
+            for key in ["title", "series", "image_url", "category", "year", "medium", "dimensions", "status", "story"]:
                 if key in data and isinstance(data[key], str):
                     data[key] = data[key].strip()
 
@@ -314,11 +329,22 @@ class GalleryProductCreate(BaseModel):
         return data
 
 
-class GalleryProductResponse(GalleryProductCreate):
+class GalleryProductResponse(BaseModel):
     """
     Schema for gallery artwork data returned to clients.
     """
     id: int = Field(..., description="Unique gallery product identifier", examples=[1])
+    title: str = Field(..., examples=["Embers in Motion"])
+    series: str = Field(..., examples=["Rhythm Studies"])
+    price: Optional[Decimal] = Field(default=None, examples=["1250.00"])
+    image_url: Optional[str] = Field(default=None, examples=["https://example.com/art/embers-in-motion.jpg"])
+    category: GalleryCategory = Field(..., examples=["abstract"])
+    year: str = Field(..., examples=["2026"])
+    medium: str = Field(..., examples=["Acrylic, charcoal, and gold leaf"])
+    dimensions: str = Field(..., examples=["90 x 120 cm"])
+    status: GalleryStatus = Field(..., examples=["Available"])
+    story: str = Field(..., examples=["A layered study of movement, memory, and warm evening light."])
+    colors: list[str] = Field(..., examples=[["#7c3aed", "#f97316", "#111827"]])
     created_by_id: int = Field(..., description="Admin account that created the gallery product", examples=[1])
     created_at: Optional[datetime] = Field(default=None, description="Gallery product creation timestamp")
     updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")

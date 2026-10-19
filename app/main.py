@@ -60,6 +60,46 @@ def ensure_account_schema() -> None:
     remove_account_username_column()
 
 
+def ensure_gallery_product_schema() -> None:
+    """
+    Add gallery product commerce columns for databases created before price/images existed.
+    """
+    inspector = inspect(engine)
+    if not inspector.has_table("gallery_products"):
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("gallery_products")}
+    statements = []
+    dialect = engine.dialect.name
+
+    if "price" not in existing_columns:
+        if dialect == "postgresql":
+            statements.append("ALTER TABLE gallery_products ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2)")
+        else:
+            statements.append("ALTER TABLE gallery_products ADD COLUMN price NUMERIC(10, 2)")
+
+    if "image_url" not in existing_columns:
+        if dialect == "postgresql":
+            statements.append("ALTER TABLE gallery_products ADD COLUMN IF NOT EXISTS image_url VARCHAR(500)")
+        else:
+            statements.append("ALTER TABLE gallery_products ADD COLUMN image_url VARCHAR(500)")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for ddl in statements:
+            connection.execute(text(ddl))
+
+
+def ensure_database_schema() -> None:
+    """
+    Keep existing tables aligned with the current models.
+    """
+    ensure_account_schema()
+    ensure_gallery_product_schema()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -68,7 +108,7 @@ async def lifespan(app: FastAPI):
     """
     # Create tables in PostgreSQL if they do not exist
     Base.metadata.create_all(bind=engine)
-    ensure_account_schema()
+    ensure_database_schema()
     yield
 
 
