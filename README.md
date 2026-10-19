@@ -7,11 +7,11 @@ A production-ready FastAPI backend application connected to PostgreSQL, featurin
 ## 🌟 Features
 
 * **Account Registration (`POST /register`)**:
-  * Fields: `id` (optional, auto-generated if omitted), `firstname`, `lastname`, `username`, `phone`, `email`, and `password`.
-  * Safe password hashing via BCrypt.
-  * Duplicate conflict prevention on `id`, `username`, `email`, and `phone` (`409 Conflict`).
-* **Multi-Identifier Login (`POST /login`)**:
-  * Authenticate using either **username** OR **phone number** along with **password**.
+  * Fields: `id` (optional, auto-generated if omitted), `firstname`, `lastname`, `phone`, `email`, and `password`.
+  * Strong password validation and safe password hashing via BCrypt.
+  * Duplicate conflict prevention on `id`, `email`, and `phone` (`409 Conflict`).
+* **Email Login (`POST /login`)**:
+  * Authenticate using **email** and **password**.
   * Returns a signed JWT Bearer access token and user information.
 * **Interactive Endpoint Documentation**:
   * Swagger UI available at: `http://localhost:8000/docs`
@@ -109,7 +109,6 @@ Server will be running at:
   "id": 101,
   "firstname": "John",
   "lastname": "Doe",
-  "username": "johndoe",
   "phone": "+1234567890",
   "email": "john.doe@example.com",
   "password": "SecurePassword123!"
@@ -121,7 +120,6 @@ Server will be running at:
 {
   "firstname": "Jane",
   "lastname": "Smith",
-  "username": "janesmith",
   "phone": "+1987654321",
   "email": "jane.smith@example.com",
   "password": "SecurePassword123!"
@@ -134,9 +132,9 @@ Server will be running at:
   "id": 1,
   "firstname": "Jane",
   "lastname": "Smith",
-  "username": "janesmith",
   "phone": "+1987654321",
   "email": "jane.smith@example.com",
+  "role": "user",
   "created_at": "2026-10-13T16:04:34.375648+02:00",
   "updated_at": "2026-10-13T16:04:34.375648+02:00"
 }
@@ -144,23 +142,15 @@ Server will be running at:
 
 ---
 
-### 2. Login (Username OR Phone + Password)
+### 2. Login (Email + Password)
 * **Endpoint**: `POST /login` *(or `POST /auth/login`)*
 * **Status Code**: `200 OK`
 * **Headers**: `Content-Type: application/json`
 
-**Login using Username:**
+**Login using Email:**
 ```json
 {
-  "username_or_phone": "johndoe",
-  "password": "SecurePassword123!"
-}
-```
-
-**Login using Phone:**
-```json
-{
-  "username_or_phone": "+1234567890",
+  "email": "john.doe@example.com",
   "password": "SecurePassword123!"
 }
 ```
@@ -175,9 +165,9 @@ Server will be running at:
     "id": 101,
     "firstname": "John",
     "lastname": "Doe",
-    "username": "johndoe",
     "phone": "+1234567890",
     "email": "john.doe@example.com",
+    "role": "user",
     "created_at": "2026-10-13T16:04:33.969660+02:00",
     "updated_at": "2026-10-13T16:04:33.969660+02:00"
   }

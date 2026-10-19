@@ -1,7 +1,7 @@
 import sys
 from fastapi.testclient import TestClient
 from app.main import app
-from app.main import ensure_account_role_column
+from app.main import ensure_account_schema
 from app.database import engine, Base
 
 def run_tests():
@@ -11,7 +11,7 @@ def run_tests():
 
     # Initialize tables
     Base.metadata.create_all(bind=engine)
-    ensure_account_role_column()
+    ensure_account_schema()
     client = TestClient(app)
 
     # 1. Health check
@@ -36,59 +36,71 @@ def run_tests():
     assert "access-control-allow-origin" in res.headers, "CORS header missing"
     print("-> CORS check passed successfully!")
 
-    # 3. Create Account with explicit ID
+    # 3. Reject weak password
     import time
     ts = int(time.time())
+    weak_password_account = {
+        "firstname": "Weak",
+        "lastname": "Password",
+        "phone": f"+111000{ts % 10000}",
+        "email": f"weak_{ts}@example.com",
+        "password": "password",
+    }
+    print("\n[3] Testing weak password rejection...")
+    res = client.post("/register", json=weak_password_account)
+    print(f"Status: {res.status_code}, Response: {res.json()}")
+    assert res.status_code == 422, f"Expected 422 for weak password, got {res.status_code}"
+    print("-> Weak password correctly rejected!")
+
+    # 4. Create Account with explicit ID
     account_data_1 = {
         "id": ts % 100000 + 10000,
         "firstname": "Alice",
         "lastname": "Wonder",
-        "username": f"alice_{ts}",
         "phone": f"+123456{ts % 10000}",
         "email": f"alice_{ts}@example.com",
         "password": "SuperSecretPassword123!",
     }
-    print(f"\n[3] Testing account creation with explicit ID ({account_data_1['id']})...")
+    print(f"\n[4] Testing account creation with explicit ID ({account_data_1['id']})...")
     res = client.post("/register", json=account_data_1)
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 201, f"Failed to create account: {res.text}"
     created_user_1 = res.json()
     assert created_user_1["id"] == account_data_1["id"], "ID mismatch"
-    assert created_user_1["username"] == account_data_1["username"]
+    assert "username" not in created_user_1, "Username should not be returned"
     assert created_user_1["role"] == "user", "Regular account should have user role"
     assert "password" not in created_user_1, "Plain password exposed in response!"
     assert "password_hash" not in created_user_1, "Password hash exposed in response!"
     print("-> Explicit ID account creation passed successfully!")
 
-    # 4. Create Admin Account
+    # 5. Create Admin Account
     admin_data = {
         "firstname": "Artlife",
         "lastname": "Admin",
-        "username": f"admin_{ts}",
         "phone": f"+555000{ts % 10000}",
         "email": f"admin_{ts}@example.com",
         "password": "AdminSecretPassword123!",
     }
-    print("\n[4] Testing admin account creation...")
+    print("\n[5] Testing admin account creation...")
     res = client.post("/admin/register", json=admin_data)
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 201, f"Failed to create admin account: {res.text}"
     created_admin = res.json()
+    assert "username" not in created_admin, "Username should not be returned"
     assert created_admin["role"] == "admin", "Admin account should have admin role"
     assert "password" not in created_admin, "Plain password exposed in response!"
     assert "password_hash" not in created_admin, "Password hash exposed in response!"
     print("-> Admin account creation passed successfully!")
 
-    # 5. Create Account with auto-generated ID (omitting id)
+    # 6. Create Account with auto-generated ID (omitting id)
     account_data_2 = {
         "firstname": "Bob",
         "lastname": "Builder",
-        "username": f"bob_{ts}",
         "phone": f"+987654{ts % 10000}",
         "email": f"bob_{ts}@example.com",
         "passord": "BobSecurePass456!",  # Testing typo alias support as well
     }
-    print(f"\n[5] Testing account creation with auto-generated ID (omitted id)...")
+    print(f"\n[6] Testing account creation with auto-generated ID (omitted id)...")
     res = client.post("/register", json=account_data_2)
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 201, f"Failed to create account with auto ID: {res.text}"
@@ -96,35 +108,37 @@ def run_tests():
     assert created_user_2["id"] is not None and isinstance(created_user_2["id"], int)
     print(f"-> Auto-generated ID assigned: {created_user_2['id']}")
 
-    # 6. Login using Username
-    print(f"\n[6] Testing login using username '{account_data_1['username']}'...")
-    login_payload_username = {
-        "username_or_phone": account_data_1["username"],
+    # 7. Login using Email
+    print(f"\n[7] Testing login using email '{account_data_1['email']}'...")
+    login_payload_email = {
+        "email": account_data_1["email"],
         "password": account_data_1["password"],
     }
-    res = client.post("/login", json=login_payload_username)
+    res = client.post("/login", json=login_payload_email)
     print(f"Status: {res.status_code}, Response: {res.json()}")
-    assert res.status_code == 200, f"Username login failed: {res.text}"
+    assert res.status_code == 200, f"Email login failed: {res.text}"
     login_resp = res.json()
     assert "access_token" in login_resp, "Token missing in login response"
+    assert login_resp["user"]["email"] == account_data_1["email"]
+    assert "username" not in login_resp["user"], "Username should not be returned"
     token = login_resp["access_token"]
-    print("-> Login via username successful!")
+    print("-> Login via email successful!")
 
-    # 7. Login using Phone
-    print(f"\n[7] Testing login using phone '{account_data_1['phone']}'...")
+    # 8. Login using Phone should no longer be supported
+    print(f"\n[8] Testing phone login is rejected...")
     login_payload_phone = {
-        "username_or_phone": account_data_1["phone"],
+        "phone": account_data_1["phone"],
         "password": account_data_1["password"],
     }
     res = client.post("/login", json=login_payload_phone)
     print(f"Status: {res.status_code}, Response: {res.json()}")
-    assert res.status_code == 200, f"Phone login failed: {res.text}"
-    print("-> Login via phone successful!")
+    assert res.status_code == 422, f"Expected 422 for phone login, got {res.status_code}"
+    print("-> Phone login correctly rejected!")
 
-    # 8. Login with invalid password
-    print("\n[8] Testing login with invalid password...")
+    # 9. Login with invalid password
+    print("\n[9] Testing login with invalid password...")
     bad_login = {
-        "username_or_phone": account_data_1["username"],
+        "email": account_data_1["email"],
         "password": "WrongPassword!",
     }
     res = client.post("/login", json=bad_login)
@@ -132,33 +146,39 @@ def run_tests():
     assert res.status_code == 401, f"Expected 401 for wrong password, got {res.status_code}"
     print("-> Invalid password correctly rejected with 401!")
 
-    # 9. Test Protected Profile Route with JWT Token
-    print("\n[9] Testing protected /me route with JWT token...")
+    # 10. Test Protected Profile Route with JWT Token
+    print("\n[10] Testing protected /me route with JWT token...")
     res = client.get("/me", headers={"Authorization": f"Bearer {token}"})
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 200, f"Protected route failed: {res.text}"
-    assert res.json()["username"] == account_data_1["username"]
+    assert res.json()["email"] == account_data_1["email"]
+    assert "username" not in res.json(), "Username should not be returned"
     print("-> Protected /me route passed successfully!")
 
-    # 10. Test duplicate registration prevention
-    print("\n[10] Testing duplicate registration conflict...")
+    # 11. Test duplicate registration prevention
+    print("\n[11] Testing duplicate registration conflict...")
     res = client.post("/register", json=account_data_1)
     print(f"Status: {res.status_code}, Response: {res.json()}")
-    assert res.status_code == 409, f"Expected 409 for duplicate username, got {res.status_code}"
+    assert res.status_code == 409, f"Expected 409 for duplicate account, got {res.status_code}"
     print("-> Duplicate prevention passed successfully!")
 
-    # 11. Swagger Docs / OpenAPI JSON check
-    print("\n[11] Testing /openapi.json and documentation availability...")
+    # 12. Swagger Docs / OpenAPI JSON check
+    print("\n[12] Testing /openapi.json and documentation availability...")
     res = client.get("/openapi.json")
     assert res.status_code == 200, "OpenAPI json failed"
     openapi = res.json()
     assert "/register" in openapi["paths"]
     assert "/admin/register" in openapi["paths"]
     assert "/login" in openapi["paths"]
+    login_schema = openapi["components"]["schemas"]["LoginRequest"]
+    account_create_schema = openapi["components"]["schemas"]["AccountCreate"]
+    assert "email" in login_schema["properties"]
+    assert "username" not in login_schema["properties"]
+    assert "username" not in account_create_schema["properties"]
     print("-> Documentation paths present in OpenAPI schema!")
 
     print("\n==================================================")
-    print(" ALL 11 TESTS PASSED SUCCESSFULLY! ")
+    print(" ALL 12 TESTS PASSED SUCCESSFULLY! ")
     print("==================================================")
 
 if __name__ == "__main__":

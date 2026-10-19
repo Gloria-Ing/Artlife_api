@@ -29,6 +29,37 @@ def ensure_account_role_column() -> None:
         connection.execute(text(ddl))
 
 
+def remove_account_username_column() -> None:
+    """
+    Remove the old username column from existing accounts tables.
+    """
+    inspector = inspect(engine)
+    if not inspector.has_table("accounts"):
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("accounts")}
+    if "username" not in existing_columns:
+        return
+
+    dialect = engine.dialect.name
+    ddl = "ALTER TABLE accounts DROP COLUMN username"
+    if dialect == "postgresql":
+        ddl = "ALTER TABLE accounts DROP COLUMN IF EXISTS username CASCADE"
+    elif dialect == "sqlite":
+        ddl = "ALTER TABLE accounts DROP COLUMN username"
+
+    with engine.begin() as connection:
+        connection.execute(text(ddl))
+
+
+def ensure_account_schema() -> None:
+    """
+    Keep existing accounts tables aligned with the current Account model.
+    """
+    ensure_account_role_column()
+    remove_account_username_column()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -37,7 +68,7 @@ async def lifespan(app: FastAPI):
     """
     # Create tables in PostgreSQL if they do not exist
     Base.metadata.create_all(bind=engine)
-    ensure_account_role_column()
+    ensure_account_schema()
     yield
 
 
@@ -64,10 +95,10 @@ app.add_middleware(
 # ============================================================
 # Include Routers
 # ============================================================
-# Root paths: /register, /login, /me, /accounts
+# Root paths: /register, /admin/register, /login, /me, /accounts
 app.include_router(auth.router)
 
-# Prefix aliases: /auth/register, /auth/login, /auth/me
+# Prefix aliases: /auth/register, /auth/admin/register, /auth/login, /auth/me
 app.include_router(auth.router, prefix="/auth", tags=["Authentication & Accounts (Alias)"])
 
 

@@ -34,14 +34,6 @@ def _create_account(account_in: AccountCreate, db: Session, role: str = "user") 
                 detail=f"An account with ID '{account_in.id}' already exists.",
             )
 
-    # Check unique username
-    existing_username = db.query(Account).filter(Account.username == account_in.username).first()
-    if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Username '{account_in.username}' is already taken.",
-        )
-
     # Check unique email
     existing_email = db.query(Account).filter(Account.email == account_in.email).first()
     if existing_email:
@@ -65,7 +57,6 @@ def _create_account(account_in: AccountCreate, db: Session, role: str = "user") 
     account_data = {
         "firstname": account_in.firstname,
         "lastname": account_in.lastname,
-        "username": account_in.username,
         "phone": account_in.phone,
         "email": account_in.email,
         "password_hash": password_hash,
@@ -88,13 +79,13 @@ def _create_account(account_in: AccountCreate, db: Session, role: str = "user") 
     status_code=status.HTTP_201_CREATED,
     summary="Create a new account",
     description=(
-        "Create a new user account with `id`, `firstname`, `lastname`, `username`, "
-        "`phone`, `email`, and `password`. If `id` is omitted or null, PostgreSQL will "
-        "automatically generate an auto-incrementing ID. Passwords are securely hashed with bcrypt."
+        "Create a new user account with `id`, `firstname`, `lastname`, `phone`, `email`, "
+        "and a strong `password`. If `id` is omitted or null, PostgreSQL will automatically "
+        "generate an auto-incrementing ID. Passwords are securely hashed with bcrypt."
     ),
     responses={
         201: {"description": "Account created successfully."},
-        409: {"description": "Conflict: Username, email, phone, or custom ID already exists."},
+        409: {"description": "Conflict: Email, phone, or custom ID already exists."},
         422: {"description": "Validation error in request payload."},
     },
 )
@@ -116,7 +107,7 @@ def register(account_in: AccountCreate, db: Session = Depends(get_db)):
     ),
     responses={
         201: {"description": "Admin account created successfully."},
-        409: {"description": "Conflict: Username, email, phone, or custom ID already exists."},
+        409: {"description": "Conflict: Email, phone, or custom ID already exists."},
         422: {"description": "Validation error in request payload."},
     },
 )
@@ -131,40 +122,27 @@ def register_admin(account_in: AccountCreate, db: Session = Depends(get_db)):
     "/login",
     response_model=LoginResponse,
     status_code=status.HTTP_200_OK,
-    summary="Login with username or phone and password",
+    summary="Login with email and password",
     description=(
-        "Authenticate a user using their **username** OR **phone number** alongside their password. "
-        "Upon successful authentication, a JWT Bearer token and user account information are returned."
+        "Authenticate a user using their **email address** and password. Upon successful "
+        "authentication, a JWT Bearer token and user account information are returned."
     ),
     responses={
         200: {"description": "Login successful with JWT access token."},
-        401: {"description": "Unauthorized: Invalid username/phone or password."},
-        422: {"description": "Validation error: Missing identifier or password."},
+        401: {"description": "Unauthorized: Invalid email or password."},
+        422: {"description": "Validation error: Missing email or password."},
     },
 )
 def login(login_in: LoginRequest, db: Session = Depends(get_db)):
     """
-    Endpoint for user login. Supports username or phone number.
+    Endpoint for user login using email and password.
     """
-    try:
-        identifier = login_in.get_identifier()
-    except ValueError as err:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(err),
-        )
-
-    # Query account matching username OR phone
-    account = (
-        db.query(Account)
-        .filter((Account.username == identifier) | (Account.phone == identifier))
-        .first()
-    )
+    account = db.query(Account).filter(Account.email == login_in.email).first()
 
     if not account or not verify_password(login_in.password, account.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username/phone or password.",
+            detail="Invalid email or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -172,7 +150,6 @@ def login(login_in: LoginRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(
         data={
             "sub": str(account.id),
-            "username": account.username,
             "email": account.email,
             "role": account.role,
         }
