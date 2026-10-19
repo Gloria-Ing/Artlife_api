@@ -79,6 +79,7 @@ class AccountResponse(BaseModel):
     username: str = Field(..., examples=["johndoe"])
     phone: str = Field(..., examples=["+1234567890"])
     email: EmailStr = Field(..., examples=["john.doe@example.com"])
+    role: str = Field(default="user", examples=["user"])
     created_at: Optional[datetime] = Field(default=None, description="Account creation timestamp")
     updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")
 
@@ -138,6 +139,13 @@ class LoginResponse(BaseModel):
     access_token: str = Field(..., description="JWT Bearer token", examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
     token_type: str = Field(default="bearer", examples=["bearer"])
     user: AccountResponse
+
+
+class AdminAccountResponse(AccountResponse):
+    """
+    Schema for admin account data returned to clients.
+    """
+    role: str = Field(default="admin", examples=["admin"])
 
 
 class MessageResponse(BaseModel):

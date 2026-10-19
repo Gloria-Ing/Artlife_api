@@ -7,6 +7,7 @@ from app.models import Account
 from app.schemas import (
     AccountCreate,
     AccountResponse,
+    AdminAccountResponse,
     LoginRequest,
     LoginResponse,
 )
@@ -20,25 +21,9 @@ from app.security import (
 router = APIRouter(tags=["Authentication & Accounts"])
 
 
-@router.post(
-    "/register",
-    response_model=AccountResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new account",
-    description=(
-        "Create a new user account with `id`, `firstname`, `lastname`, `username`, "
-        "`phone`, `email`, and `password`. If `id` is omitted or null, PostgreSQL will "
-        "automatically generate an auto-incrementing ID. Passwords are securely hashed with bcrypt."
-    ),
-    responses={
-        201: {"description": "Account created successfully."},
-        409: {"description": "Conflict: Username, email, phone, or custom ID already exists."},
-        422: {"description": "Validation error in request payload."},
-    },
-)
-def register(account_in: AccountCreate, db: Session = Depends(get_db)):
+def _create_account(account_in: AccountCreate, db: Session, role: str = "user") -> Account:
     """
-    Endpoint to register a new account.
+    Create an account after validating unique identifiers.
     """
     # Check if custom ID was provided and is already registered
     if account_in.id is not None:
@@ -84,6 +69,7 @@ def register(account_in: AccountCreate, db: Session = Depends(get_db)):
         "phone": account_in.phone,
         "email": account_in.email,
         "password_hash": password_hash,
+        "role": role,
     }
     if account_in.id is not None:
         account_data["id"] = account_in.id
@@ -94,6 +80,51 @@ def register(account_in: AccountCreate, db: Session = Depends(get_db)):
     db.refresh(new_account)
 
     return new_account
+
+
+@router.post(
+    "/register",
+    response_model=AccountResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new account",
+    description=(
+        "Create a new user account with `id`, `firstname`, `lastname`, `username`, "
+        "`phone`, `email`, and `password`. If `id` is omitted or null, PostgreSQL will "
+        "automatically generate an auto-incrementing ID. Passwords are securely hashed with bcrypt."
+    ),
+    responses={
+        201: {"description": "Account created successfully."},
+        409: {"description": "Conflict: Username, email, phone, or custom ID already exists."},
+        422: {"description": "Validation error in request payload."},
+    },
+)
+def register(account_in: AccountCreate, db: Session = Depends(get_db)):
+    """
+    Endpoint to register a new account.
+    """
+    return _create_account(account_in=account_in, db=db, role="user")
+
+
+@router.post(
+    "/admin/register",
+    response_model=AdminAccountResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new admin account",
+    description=(
+        "Create an admin account with the same fields as a normal account, but store it with "
+        "`role='admin'` so it is different from customer/user accounts."
+    ),
+    responses={
+        201: {"description": "Admin account created successfully."},
+        409: {"description": "Conflict: Username, email, phone, or custom ID already exists."},
+        422: {"description": "Validation error in request payload."},
+    },
+)
+def register_admin(account_in: AccountCreate, db: Session = Depends(get_db)):
+    """
+    Endpoint to register a new admin account.
+    """
+    return _create_account(account_in=account_in, db=db, role="admin")
 
 
 @router.post(
@@ -143,6 +174,7 @@ def login(login_in: LoginRequest, db: Session = Depends(get_db)):
             "sub": str(account.id),
             "username": account.username,
             "email": account.email,
+            "role": account.role,
         }
     )
 

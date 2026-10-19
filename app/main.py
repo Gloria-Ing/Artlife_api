@@ -1,11 +1,32 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
 from app.routers import auth
+
+
+def ensure_account_role_column() -> None:
+    """
+    Add the role column for existing databases created before admin accounts existed.
+    """
+    inspector = inspect(engine)
+    if not inspector.has_table("accounts"):
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("accounts")}
+    if "role" in existing_columns:
+        return
+
+    dialect = engine.dialect.name
+    ddl = "ALTER TABLE accounts ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"
+    if dialect == "postgresql":
+        ddl = "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user'"
+
+    with engine.begin() as connection:
+        connection.execute(text(ddl))
 
 
 @asynccontextmanager
@@ -16,6 +37,7 @@ async def lifespan(app: FastAPI):
     """
     # Create tables in PostgreSQL if they do not exist
     Base.metadata.create_all(bind=engine)
+    ensure_account_role_column()
     yield
 
 
@@ -66,6 +88,7 @@ def root():
         "redoc_url": "/redoc",
         "endpoints": {
             "register": "POST /register (or POST /auth/register)",
+            "admin_register": "POST /admin/register (or POST /auth/admin/register)",
             "login": "POST /login (or POST /auth/login)",
             "profile": "GET /me (requires Bearer token)",
             "accounts": "GET /accounts",
