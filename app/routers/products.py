@@ -1,15 +1,27 @@
-from fastapi import APIRouter, Depends, status
+from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Account, GalleryProduct
-from app.schemas import GalleryProductCreate, GalleryProductResponse
+from app.schemas import GalleryCategory, GalleryProductResponse, GalleryStatus
 from app.security import get_current_admin
 
 router = APIRouter(tags=["Gallery Products"])
 
 GALLERY_CATEGORIES = ("children", "abstract", "figurative", "heritage")
 GALLERY_STATUSES = ("Available", "Private Collection", "Exhibition Feature")
+UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads" / "gallery"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 
 @router.get(
@@ -48,25 +60,56 @@ def list_gallery_products(db: Session = Depends(get_db)):
     },
 )
 def create_gallery_product(
-    product_in: GalleryProductCreate,
+    title: str = Form(...),
+    series: str = Form(...),
+    price: Decimal = Form(...),
+    category: GalleryCategory = Form(...),
+    year: str = Form(...),
+    medium: str = Form(...),
+    dimensions: str = Form(...),
+    product_status: GalleryStatus = Form(..., alias="status"),
+    story: str = Form(...),
+    colors: str = Form(...),
+    image: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_admin: Account = Depends(get_current_admin),
 ):
     """
     Endpoint for admins to add an artwork to the gallery.
     """
+    if image.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Image must be a JPG, PNG, WEBP, or GIF file.",
+        )
+
+    parsed_colors = [color.strip() for color in colors.split(",") if color.strip()]
+    if not parsed_colors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Please provide at least one palette color.",
+        )
+
+    extension = ALLOWED_IMAGE_TYPES[image.content_type]
+    filename = f"{uuid4().hex}{extension}"
+    image_path = UPLOAD_DIR / filename
+
+    with image_path.open("wb") as destination:
+        while chunk := image.file.read(1024 * 1024):
+            destination.write(chunk)
+
     product = GalleryProduct(
-        title=product_in.title,
-        series=product_in.series,
-        price=product_in.price,
-        image_url=product_in.image_url,
-        category=product_in.category,
-        year=product_in.year,
-        medium=product_in.medium,
-        dimensions=product_in.dimensions,
-        status=product_in.status,
-        story=product_in.story,
-        colors=product_in.colors,
+        title=title.strip(),
+        series=series.strip(),
+        price=price,
+        image_url=f"/uploads/gallery/{filename}",
+        category=category,
+        year=year.strip(),
+        medium=medium.strip(),
+        dimensions=dimensions.strip(),
+        status=product_status,
+        story=story.strip(),
+        colors=parsed_colors,
         created_by_id=current_admin.id,
     )
     db.add(product)

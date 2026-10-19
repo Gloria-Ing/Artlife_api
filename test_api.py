@@ -179,16 +179,18 @@ def run_tests():
         "year": "2026",
         "status": "Available",
         "story": "Original acrylic painting inspired by Cape Town sunsets.",
-        "colors": ["#f97316", "#7c2d12", "#fef3c7"],
+        "colors": "#f97316, #7c2d12, #fef3c7",
     }
     print("\n[12] Testing admin-only gallery product creation...")
-    res = client.post("/gallery/products", json=product_payload)
+    image_file = ("sunset.jpg", b"fake image bytes", "image/jpeg")
+    res = client.post("/gallery/products", data=product_payload, files={"image": image_file})
     print(f"No-token status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 401, f"Expected 401 without token, got {res.status_code}"
 
     res = client.post(
         "/gallery/products",
-        json=product_payload,
+        data=product_payload,
+        files={"image": image_file},
         headers={"Authorization": f"Bearer {token}"},
     )
     print(f"User-token status: {res.status_code}, Response: {res.json()}")
@@ -196,7 +198,8 @@ def run_tests():
 
     res = client.post(
         "/gallery/products",
-        json=product_payload,
+        data=product_payload,
+        files={"image": image_file},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     print(f"Admin-token status: {res.status_code}, Response: {res.json()}")
@@ -205,9 +208,9 @@ def run_tests():
     assert created_product["title"] == product_payload["title"]
     assert created_product["created_by_id"] == created_admin["id"]
     assert created_product["price"] == product_payload["price"]
-    assert created_product["image_url"] == product_payload["image_url"]
+    assert created_product["image_url"].startswith("/uploads/gallery/")
     assert created_product["status"] == "Available"
-    assert created_product["colors"] == product_payload["colors"]
+    assert created_product["colors"] == ["#f97316", "#7c2d12", "#fef3c7"]
     print("-> Admin-only gallery product creation passed successfully!")
 
     # 13. Test Public Gallery Product Listing
@@ -236,14 +239,11 @@ def run_tests():
     assert "/gallery/products" in openapi["paths"]
     login_schema = openapi["components"]["schemas"]["LoginRequest"]
     account_create_schema = openapi["components"]["schemas"]["AccountCreate"]
-    product_create_schema = openapi["components"]["schemas"]["GalleryProductCreate"]
+    product_request_content = openapi["paths"]["/gallery/products"]["post"]["requestBody"]["content"]
     assert "email" in login_schema["properties"]
     assert "username" not in login_schema["properties"]
     assert "username" not in account_create_schema["properties"]
-    assert "status" in product_create_schema["properties"]
-    assert "colors" in product_create_schema["properties"]
-    assert "price" in product_create_schema["properties"]
-    assert "image_url" in product_create_schema["properties"]
+    assert "multipart/form-data" in product_request_content
     print("-> Documentation paths present in OpenAPI schema!")
 
     print("\n==================================================")
