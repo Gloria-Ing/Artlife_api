@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional, Any
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator
 
@@ -143,6 +144,89 @@ class AdminAccountResponse(AccountResponse):
     Schema for admin account data returned to clients.
     """
     role: str = Field(default="admin", examples=["admin"])
+
+
+class ProductCreate(BaseModel):
+    """
+    Schema for adding a product to the gallery.
+    """
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=150,
+        description="Artwork or product title",
+        examples=["Sunset Over Table Mountain"],
+    )
+    description: Optional[str] = Field(
+        default=None,
+        max_length=2000,
+        description="Product description shown to customers",
+        examples=["Original acrylic painting inspired by Cape Town sunsets."],
+    )
+    price: Decimal = Field(
+        ...,
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Selling price for the product",
+        examples=["1250.00"],
+    )
+    image_url: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Public image URL for the product",
+        examples=["https://example.com/art/sunset.jpg"],
+    )
+    category: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Product category",
+        examples=["Painting"],
+    )
+    medium: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Artwork medium",
+        examples=["Acrylic on canvas"],
+    )
+    dimensions: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Artwork dimensions",
+        examples=["60cm x 90cm"],
+    )
+    stock_quantity: int = Field(
+        default=1,
+        ge=0,
+        description="Available quantity",
+        examples=[1],
+    )
+    is_available: bool = Field(
+        default=True,
+        description="Whether the product is available for sale",
+        examples=[True],
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def trim_product_strings(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for key in ["title", "description", "image_url", "category", "medium", "dimensions"]:
+                if key in data and isinstance(data[key], str):
+                    data[key] = data[key].strip()
+        return data
+
+
+class ProductResponse(ProductCreate):
+    """
+    Schema for product data returned to clients.
+    """
+    id: int = Field(..., description="Unique product identifier", examples=[1])
+    created_by_id: int = Field(..., description="Admin account that created the product", examples=[1])
+    created_at: Optional[datetime] = Field(default=None, description="Product creation timestamp")
+    updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MessageResponse(BaseModel):

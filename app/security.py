@@ -87,3 +87,15 @@ def get_current_user(
         raise credentials_exception
 
     return account
+
+
+def get_current_admin(current_user: Account = Depends(get_current_user)) -> Account:
+    """
+    Dependency to require an authenticated admin account.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges are required.",
+        )
+    return current_user

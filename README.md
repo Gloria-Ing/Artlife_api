@@ -13,6 +13,9 @@ A production-ready FastAPI backend application connected to PostgreSQL, featurin
 * **Email Login (`POST /login`)**:
   * Authenticate using **email** and **password**.
   * Returns a signed JWT Bearer access token and user information.
+* **Gallery Product Creation (`POST /gallery/products`)**:
+  * Add art products to the gallery with title, description, price, image URL, category, medium, dimensions, stock, and availability.
+  * Requires an authenticated admin Bearer token.
 * **Interactive Endpoint Documentation**:
   * Swagger UI available at: `http://localhost:8000/docs`
   * ReDoc available at: `http://localhost:8000/redoc`
@@ -183,7 +186,50 @@ Server will be running at:
 
 ---
 
-### 4. Database Health Check
+### 4. Add Gallery Product
+* **Endpoint**: `POST /gallery/products`
+* **Status Code**: `201 Created`
+* **Headers**:
+  * `Content-Type: application/json`
+  * `Authorization: Bearer <admin_access_token>`
+
+**Request Body:**
+```json
+{
+  "title": "Sunset Over Table Mountain",
+  "description": "Original acrylic painting inspired by Cape Town sunsets.",
+  "price": "1250.00",
+  "image_url": "https://example.com/art/sunset.jpg",
+  "category": "Painting",
+  "medium": "Acrylic on canvas",
+  "dimensions": "60cm x 90cm",
+  "stock_quantity": 1,
+  "is_available": true
+}
+```
+
+**Response (`201 Created`):**
+```json
+{
+  "id": 1,
+  "title": "Sunset Over Table Mountain",
+  "description": "Original acrylic painting inspired by Cape Town sunsets.",
+  "price": "1250.00",
+  "image_url": "https://example.com/art/sunset.jpg",
+  "category": "Painting",
+  "medium": "Acrylic on canvas",
+  "dimensions": "60cm x 90cm",
+  "stock_quantity": 1,
+  "is_available": true,
+  "created_by_id": 1,
+  "created_at": "2026-10-19T14:00:00.000000+02:00",
+  "updated_at": "2026-10-19T14:00:00.000000+02:00"
+}
+```
+
+---
+
+### 5. Database Health Check
 * **Endpoint**: `GET /health`
 * **Status Code**: `200 OK`
 

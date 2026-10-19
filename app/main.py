@@ -5,7 +5,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
-from app.routers import auth
+from app.routers import auth, products
 
 
 def ensure_account_role_column() -> None:
@@ -95,8 +95,9 @@ app.add_middleware(
 # ============================================================
 # Include Routers
 # ============================================================
-# Root paths: /register, /admin/register, /login, /me, /accounts
+# Root paths: /register, /admin/register, /login, /me, /accounts, /gallery/products
 app.include_router(auth.router)
+app.include_router(products.router)
 
 # Prefix aliases: /auth/register, /auth/admin/register, /auth/login, /auth/me
 app.include_router(auth.router, prefix="/auth", tags=["Authentication & Accounts (Alias)"])
@@ -123,6 +124,7 @@ def root():
             "login": "POST /login (or POST /auth/login)",
             "profile": "GET /me (requires Bearer token)",
             "accounts": "GET /accounts",
+            "create_product": "POST /gallery/products (requires admin Bearer token)",
             "health": "GET /health",
         },
     }

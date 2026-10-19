@@ -124,8 +124,20 @@ def run_tests():
     token = login_resp["access_token"]
     print("-> Login via email successful!")
 
-    # 8. Login using Phone should no longer be supported
-    print(f"\n[8] Testing phone login is rejected...")
+    # 8. Login using Admin Email
+    print(f"\n[8] Testing admin login using email '{admin_data['email']}'...")
+    admin_login_payload = {
+        "email": admin_data["email"],
+        "password": admin_data["password"],
+    }
+    res = client.post("/login", json=admin_login_payload)
+    print(f"Status: {res.status_code}, Response: {res.json()}")
+    assert res.status_code == 200, f"Admin email login failed: {res.text}"
+    admin_token = res.json()["access_token"]
+    print("-> Admin login via email successful!")
+
+    # 9. Login using Phone should no longer be supported
+    print(f"\n[9] Testing phone login is rejected...")
     login_payload_phone = {
         "phone": account_data_1["phone"],
         "password": account_data_1["password"],
@@ -135,8 +147,8 @@ def run_tests():
     assert res.status_code == 422, f"Expected 422 for phone login, got {res.status_code}"
     print("-> Phone login correctly rejected!")
 
-    # 9. Login with invalid password
-    print("\n[9] Testing login with invalid password...")
+    # 10. Login with invalid password
+    print("\n[10] Testing login with invalid password...")
     bad_login = {
         "email": account_data_1["email"],
         "password": "WrongPassword!",
@@ -146,8 +158,8 @@ def run_tests():
     assert res.status_code == 401, f"Expected 401 for wrong password, got {res.status_code}"
     print("-> Invalid password correctly rejected with 401!")
 
-    # 10. Test Protected Profile Route with JWT Token
-    print("\n[10] Testing protected /me route with JWT token...")
+    # 11. Test Protected Profile Route with JWT Token
+    print("\n[11] Testing protected /me route with JWT token...")
     res = client.get("/me", headers={"Authorization": f"Bearer {token}"})
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 200, f"Protected route failed: {res.text}"
@@ -155,30 +167,71 @@ def run_tests():
     assert "username" not in res.json(), "Username should not be returned"
     print("-> Protected /me route passed successfully!")
 
-    # 11. Test duplicate registration prevention
-    print("\n[11] Testing duplicate registration conflict...")
+    # 12. Test Admin Product Creation
+    product_payload = {
+        "title": f"Sunset Over Table Mountain {ts}",
+        "description": "Original acrylic painting inspired by Cape Town sunsets.",
+        "price": "1250.00",
+        "image_url": "https://example.com/art/sunset.jpg",
+        "category": "Painting",
+        "medium": "Acrylic on canvas",
+        "dimensions": "60cm x 90cm",
+        "stock_quantity": 1,
+        "is_available": True,
+    }
+    print("\n[12] Testing admin-only gallery product creation...")
+    res = client.post("/gallery/products", json=product_payload)
+    print(f"No-token status: {res.status_code}, Response: {res.json()}")
+    assert res.status_code == 401, f"Expected 401 without token, got {res.status_code}"
+
+    res = client.post(
+        "/gallery/products",
+        json=product_payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    print(f"User-token status: {res.status_code}, Response: {res.json()}")
+    assert res.status_code == 403, f"Expected 403 with regular user token, got {res.status_code}"
+
+    res = client.post(
+        "/gallery/products",
+        json=product_payload,
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    print(f"Admin-token status: {res.status_code}, Response: {res.json()}")
+    assert res.status_code == 201, f"Admin product creation failed: {res.text}"
+    created_product = res.json()
+    assert created_product["title"] == product_payload["title"]
+    assert created_product["created_by_id"] == created_admin["id"]
+    assert created_product["is_available"] is True
+    print("-> Admin-only gallery product creation passed successfully!")
+
+    # 13. Test duplicate registration prevention
+    print("\n[13] Testing duplicate registration conflict...")
     res = client.post("/register", json=account_data_1)
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 409, f"Expected 409 for duplicate account, got {res.status_code}"
     print("-> Duplicate prevention passed successfully!")
 
-    # 12. Swagger Docs / OpenAPI JSON check
-    print("\n[12] Testing /openapi.json and documentation availability...")
+    # 14. Swagger Docs / OpenAPI JSON check
+    print("\n[14] Testing /openapi.json and documentation availability...")
     res = client.get("/openapi.json")
     assert res.status_code == 200, "OpenAPI json failed"
     openapi = res.json()
     assert "/register" in openapi["paths"]
     assert "/admin/register" in openapi["paths"]
     assert "/login" in openapi["paths"]
+    assert "/gallery/products" in openapi["paths"]
     login_schema = openapi["components"]["schemas"]["LoginRequest"]
     account_create_schema = openapi["components"]["schemas"]["AccountCreate"]
+    product_create_schema = openapi["components"]["schemas"]["ProductCreate"]
     assert "email" in login_schema["properties"]
     assert "username" not in login_schema["properties"]
     assert "username" not in account_create_schema["properties"]
+    assert "price" in product_create_schema["properties"]
     print("-> Documentation paths present in OpenAPI schema!")
 
     print("\n==================================================")
-    print(" ALL 12 TESTS PASSED SUCCESSFULLY! ")
+    print(" ALL 14 TESTS PASSED SUCCESSFULLY! ")
     print("==================================================")
 
 if __name__ == "__main__":
