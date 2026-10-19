@@ -65,11 +65,9 @@ def create_gallery_product(
     price: Decimal = Form(...),
     category: GalleryCategory = Form(...),
     year: str = Form(...),
-    medium: str = Form(...),
     dimensions: str = Form(...),
     product_status: GalleryStatus = Form(..., alias="status"),
     story: str = Form(...),
-    colors: str = Form(...),
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_admin: Account = Depends(get_current_admin),
@@ -81,13 +79,6 @@ def create_gallery_product(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Image must be a JPG, PNG, WEBP, or GIF file.",
-        )
-
-    parsed_colors = [color.strip() for color in colors.split(",") if color.strip()]
-    if not parsed_colors:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Please provide at least one palette color.",
         )
 
     extension = ALLOWED_IMAGE_TYPES[image.content_type]
@@ -105,11 +96,11 @@ def create_gallery_product(
         image_url=f"/uploads/gallery/{filename}",
         category=category,
         year=year.strip(),
-        medium=medium.strip(),
+        medium="",
         dimensions=dimensions.strip(),
         status=product_status,
         story=story.strip(),
-        colors=parsed_colors,
+        colors=[],
         created_by_id=current_admin.id,
     )
     db.add(product)

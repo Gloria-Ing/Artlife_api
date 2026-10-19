@@ -174,12 +174,10 @@ def run_tests():
         "price": "1250.00",
         "image_url": "https://example.com/art/sunset.jpg",
         "category": "abstract",
-        "medium": "Acrylic on canvas",
         "dimensions": "60cm x 90cm",
         "year": "2026",
         "status": "Available",
         "story": "Original acrylic painting inspired by Cape Town sunsets.",
-        "colors": "#f97316, #7c2d12, #fef3c7",
     }
     print("\n[12] Testing admin-only gallery product creation...")
     image_file = ("sunset.jpg", b"fake image bytes", "image/jpeg")
@@ -210,7 +208,6 @@ def run_tests():
     assert created_product["price"] == product_payload["price"]
     assert created_product["image_url"].startswith("/uploads/gallery/")
     assert created_product["status"] == "Available"
-    assert created_product["colors"] == ["#f97316", "#7c2d12", "#fef3c7"]
     print("-> Admin-only gallery product creation passed successfully!")
 
     # 13. Test Public Gallery Product Listing
