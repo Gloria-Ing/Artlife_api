@@ -124,6 +124,7 @@ def root():
             "login": "POST /login (or POST /auth/login)",
             "profile": "GET /me (requires Bearer token)",
             "accounts": "GET /accounts",
+            "gallery_products": "GET /gallery/products",
             "create_product": "POST /gallery/products (requires admin Bearer token)",
             "health": "GET /health",
         },

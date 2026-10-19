@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -45,3 +45,27 @@ class Product(Base):
 
     def __repr__(self) -> str:
         return f"<Product(id={self.id}, title='{self.title}', price='{self.price}')>"
+
+
+class GalleryProduct(Base):
+    """
+    SQLAlchemy model representing an artwork shown in the public gallery.
+    """
+    __tablename__ = "gallery_products"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title = Column(String(150), nullable=False, index=True)
+    series = Column(String(150), nullable=False)
+    category = Column(String(50), nullable=False)
+    year = Column(String(20), nullable=False)
+    medium = Column(String(120), nullable=False)
+    dimensions = Column(String(120), nullable=False)
+    status = Column(String(50), nullable=False, default="Available", server_default="Available")
+    story = Column(Text, nullable=False)
+    colors = Column(JSON, nullable=False, default=list)
+    created_by_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<GalleryProduct(id={self.id}, title='{self.title}', status='{self.status}')>"

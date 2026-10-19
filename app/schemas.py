@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator
 
 
@@ -224,6 +224,103 @@ class ProductResponse(ProductCreate):
     id: int = Field(..., description="Unique product identifier", examples=[1])
     created_by_id: int = Field(..., description="Admin account that created the product", examples=[1])
     created_at: Optional[datetime] = Field(default=None, description="Product creation timestamp")
+    updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+GalleryCategory = Literal["children", "abstract", "figurative", "heritage"]
+GalleryStatus = Literal["Available", "Private Collection", "Exhibition Feature"]
+
+
+class GalleryProductCreate(BaseModel):
+    """
+    Schema for adding an artwork to the gallery.
+    """
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=150,
+        description="Artwork title",
+        examples=["Embers in Motion"],
+    )
+    series: str = Field(
+        ...,
+        min_length=1,
+        max_length=150,
+        description="Artwork series or collection",
+        examples=["Rhythm Studies"],
+    )
+    category: GalleryCategory = Field(
+        ...,
+        description="Gallery category used by the frontend filters",
+        examples=["abstract"],
+    )
+    year: str = Field(
+        ...,
+        min_length=4,
+        max_length=20,
+        description="Artwork year or production period",
+        examples=["2026"],
+    )
+    medium: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        description="Materials or technique used",
+        examples=["Acrylic, charcoal, and gold leaf"],
+    )
+    dimensions: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        description="Artwork dimensions",
+        examples=["90 x 120 cm"],
+    )
+    status: GalleryStatus = Field(
+        ...,
+        description="Artwork availability status",
+        examples=["Available"],
+    )
+    story: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Short narrative shown on the gallery product card",
+        examples=["A layered study of movement, memory, and warm evening light."],
+    )
+    colors: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=8,
+        description="Dominant color swatches for the gallery card",
+        examples=[["#7c3aed", "#f97316", "#111827"]],
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def trim_gallery_product_strings(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for key in ["title", "series", "category", "year", "medium", "dimensions", "status", "story"]:
+                if key in data and isinstance(data[key], str):
+                    data[key] = data[key].strip()
+
+            if "colors" in data and isinstance(data["colors"], list):
+                data["colors"] = [
+                    color.strip()
+                    for color in data["colors"]
+                    if isinstance(color, str) and color.strip()
+                ]
+        return data
+
+
+class GalleryProductResponse(GalleryProductCreate):
+    """
+    Schema for gallery artwork data returned to clients.
+    """
+    id: int = Field(..., description="Unique gallery product identifier", examples=[1])
+    created_by_id: int = Field(..., description="Admin account that created the gallery product", examples=[1])
+    created_at: Optional[datetime] = Field(default=None, description="Gallery product creation timestamp")
     updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")
 
     model_config = ConfigDict(from_attributes=True)

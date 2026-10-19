@@ -167,17 +167,17 @@ def run_tests():
     assert "username" not in res.json(), "Username should not be returned"
     print("-> Protected /me route passed successfully!")
 
-    # 12. Test Admin Product Creation
+    # 12. Test Admin Gallery Product Creation
     product_payload = {
         "title": f"Sunset Over Table Mountain {ts}",
-        "description": "Original acrylic painting inspired by Cape Town sunsets.",
-        "price": "1250.00",
-        "image_url": "https://example.com/art/sunset.jpg",
-        "category": "Painting",
+        "series": "Cape Light Studies",
+        "category": "abstract",
         "medium": "Acrylic on canvas",
         "dimensions": "60cm x 90cm",
-        "stock_quantity": 1,
-        "is_available": True,
+        "year": "2026",
+        "status": "Available",
+        "story": "Original acrylic painting inspired by Cape Town sunsets.",
+        "colors": ["#f97316", "#7c2d12", "#fef3c7"],
     }
     print("\n[12] Testing admin-only gallery product creation...")
     res = client.post("/gallery/products", json=product_payload)
@@ -202,18 +202,27 @@ def run_tests():
     created_product = res.json()
     assert created_product["title"] == product_payload["title"]
     assert created_product["created_by_id"] == created_admin["id"]
-    assert created_product["is_available"] is True
+    assert created_product["status"] == "Available"
+    assert created_product["colors"] == product_payload["colors"]
     print("-> Admin-only gallery product creation passed successfully!")
 
-    # 13. Test duplicate registration prevention
-    print("\n[13] Testing duplicate registration conflict...")
+    # 13. Test Public Gallery Product Listing
+    print("\n[13] Testing public gallery product listing...")
+    res = client.get("/gallery/products")
+    print(f"Status: {res.status_code}, Response count: {len(res.json())}")
+    assert res.status_code == 200, f"Gallery product listing failed: {res.text}"
+    assert any(item["id"] == created_product["id"] for item in res.json())
+    print("-> Public gallery product listing passed successfully!")
+
+    # 14. Test duplicate registration prevention
+    print("\n[14] Testing duplicate registration conflict...")
     res = client.post("/register", json=account_data_1)
     print(f"Status: {res.status_code}, Response: {res.json()}")
     assert res.status_code == 409, f"Expected 409 for duplicate account, got {res.status_code}"
     print("-> Duplicate prevention passed successfully!")
 
-    # 14. Swagger Docs / OpenAPI JSON check
-    print("\n[14] Testing /openapi.json and documentation availability...")
+    # 15. Swagger Docs / OpenAPI JSON check
+    print("\n[15] Testing /openapi.json and documentation availability...")
     res = client.get("/openapi.json")
     assert res.status_code == 200, "OpenAPI json failed"
     openapi = res.json()
@@ -223,15 +232,16 @@ def run_tests():
     assert "/gallery/products" in openapi["paths"]
     login_schema = openapi["components"]["schemas"]["LoginRequest"]
     account_create_schema = openapi["components"]["schemas"]["AccountCreate"]
-    product_create_schema = openapi["components"]["schemas"]["ProductCreate"]
+    product_create_schema = openapi["components"]["schemas"]["GalleryProductCreate"]
     assert "email" in login_schema["properties"]
     assert "username" not in login_schema["properties"]
     assert "username" not in account_create_schema["properties"]
-    assert "price" in product_create_schema["properties"]
+    assert "status" in product_create_schema["properties"]
+    assert "colors" in product_create_schema["properties"]
     print("-> Documentation paths present in OpenAPI schema!")
 
     print("\n==================================================")
-    print(" ALL 14 TESTS PASSED SUCCESSFULLY! ")
+    print(" ALL 15 TESTS PASSED SUCCESSFULLY! ")
     print("==================================================")
 
 if __name__ == "__main__":

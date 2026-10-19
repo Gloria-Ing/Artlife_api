@@ -2,20 +2,42 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, Product
-from app.schemas import ProductCreate, ProductResponse
+from app.models import Account, GalleryProduct
+from app.schemas import GalleryProductCreate, GalleryProductResponse
 from app.security import get_current_admin
 
 router = APIRouter(tags=["Gallery Products"])
 
+GALLERY_CATEGORIES = ("children", "abstract", "figurative", "heritage")
+GALLERY_STATUSES = ("Available", "Private Collection", "Exhibition Feature")
+
+
+@router.get(
+    "/gallery/products",
+    response_model=list[GalleryProductResponse],
+    summary="List gallery products",
+    description="Retrieve artworks shown in the public gallery.",
+)
+def list_gallery_products(db: Session = Depends(get_db)):
+    """
+    Public endpoint for loading gallery artworks.
+    """
+    return (
+        db.query(GalleryProduct)
+        .filter(GalleryProduct.category.in_(GALLERY_CATEGORIES))
+        .filter(GalleryProduct.status.in_(GALLERY_STATUSES))
+        .order_by(GalleryProduct.created_at.desc(), GalleryProduct.id.desc())
+        .all()
+    )
+
 
 @router.post(
     "/gallery/products",
-    response_model=ProductResponse,
+    response_model=GalleryProductResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add a product to the gallery",
     description=(
-        "Create a new art product listing in the gallery. This endpoint requires an "
+        "Create a new artwork listing in the gallery. This endpoint requires an "
         "authenticated admin account."
     ),
     responses={
@@ -26,23 +48,23 @@ router = APIRouter(tags=["Gallery Products"])
     },
 )
 def create_gallery_product(
-    product_in: ProductCreate,
+    product_in: GalleryProductCreate,
     db: Session = Depends(get_db),
     current_admin: Account = Depends(get_current_admin),
 ):
     """
-    Endpoint for admins to add a product to the gallery.
+    Endpoint for admins to add an artwork to the gallery.
     """
-    product = Product(
+    product = GalleryProduct(
         title=product_in.title,
-        description=product_in.description,
-        price=product_in.price,
-        image_url=product_in.image_url,
+        series=product_in.series,
         category=product_in.category,
+        year=product_in.year,
         medium=product_in.medium,
         dimensions=product_in.dimensions,
-        stock_quantity=product_in.stock_quantity,
-        is_available=product_in.is_available,
+        status=product_in.status,
+        story=product_in.story,
+        colors=product_in.colors,
         created_by_id=current_admin.id,
     )
     db.add(product)
