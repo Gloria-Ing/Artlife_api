@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Account, GalleryProduct
-from app.schemas import GalleryCategory, GalleryProductResponse, GalleryStatus
+from app.schemas import GalleryCategory, GalleryProductResponse, GalleryStatus, MessageResponse
 from app.security import get_current_admin
 
 router = APIRouter(tags=["Gallery Products"])
@@ -107,3 +107,101 @@ def create_gallery_product(
     db.commit()
     db.refresh(product)
     return product
+
+
+@router.put(
+    "/gallery/products/{product_id}",
+    response_model=GalleryProductResponse,
+    summary="Update a gallery product",
+    description="Update an existing gallery product. This endpoint requires an authenticated admin account.",
+    responses={
+        401: {"description": "Unauthorized: Missing or invalid Bearer token."},
+        403: {"description": "Forbidden: Admin privileges are required."},
+        404: {"description": "Gallery product not found."},
+        422: {"description": "Validation error in request payload."},
+    },
+)
+def update_gallery_product(
+    product_id: int,
+    title: str = Form(...),
+    series: str = Form(...),
+    price: Decimal = Form(...),
+    category: GalleryCategory = Form(...),
+    year: str = Form(...),
+    dimensions: str = Form(...),
+    product_status: GalleryStatus = Form(..., alias="status"),
+    story: str = Form(...),
+    image: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+    current_admin: Account = Depends(get_current_admin),
+):
+    """
+    Endpoint for admins to edit an artwork already in the gallery.
+    """
+    product = db.query(GalleryProduct).filter(GalleryProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gallery product not found.",
+        )
+
+    if image is not None:
+        if image.content_type not in ALLOWED_IMAGE_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Image must be a JPG, PNG, WEBP, or GIF file.",
+            )
+
+        extension = ALLOWED_IMAGE_TYPES[image.content_type]
+        filename = f"{uuid4().hex}{extension}"
+        image_path = UPLOAD_DIR / filename
+
+        with image_path.open("wb") as destination:
+            while chunk := image.file.read(1024 * 1024):
+                destination.write(chunk)
+
+        product.image_url = f"/uploads/gallery/{filename}"
+
+    product.title = title.strip()
+    product.series = series.strip()
+    product.price = price
+    product.category = category
+    product.year = year.strip()
+    product.dimensions = dimensions.strip()
+    product.status = product_status
+    product.story = story.strip()
+
+    db.commit()
+    db.refresh(product)
+    return product
+
+
+@router.delete(
+    "/gallery/products/{product_id}",
+    response_model=MessageResponse,
+    summary="Delete a gallery product",
+    description="Delete an existing gallery product. This endpoint requires an authenticated admin account.",
+    responses={
+        401: {"description": "Unauthorized: Missing or invalid Bearer token."},
+        403: {"description": "Forbidden: Admin privileges are required."},
+        404: {"description": "Gallery product not found."},
+    },
+)
+def delete_gallery_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Account = Depends(get_current_admin),
+):
+    """
+    Endpoint for admins to remove an artwork from the gallery.
+    """
+    product = db.query(GalleryProduct).filter(GalleryProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gallery product not found.",
+        )
+
+    db.delete(product)
+    db.commit()
+    return {"message": "Gallery product deleted successfully."}
