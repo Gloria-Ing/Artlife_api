@@ -355,3 +355,72 @@ class MessageResponse(BaseModel):
     Generic message response.
     """
     message: str = Field(..., examples=["Operation completed successfully"])
+
+
+# -----------------------------------------
+# Cart Schemas
+# -----------------------------------------
+
+class CartItemAdd(BaseModel):
+    """
+    Payload for adding or updating an item in the cart.
+    """
+    gallery_product_id: int = Field(
+        ...,
+        description="ID of the gallery product to add",
+        examples=[3],
+    )
+    quantity: int = Field(
+        default=1,
+        ge=1,
+        le=100,
+        description="Number of units to add (1-100)",
+        examples=[1],
+    )
+
+
+class CartItemUpdate(BaseModel):
+    """
+    Payload for updating the quantity of an existing cart item.
+    """
+    quantity: int = Field(
+        ...,
+        ge=1,
+        le=100,
+        description="New quantity for the cart item (1-100)",
+        examples=[2],
+    )
+
+
+class CartItemResponse(BaseModel):
+    """
+    Single cart line item returned to the client.
+    """
+    id: int
+    cart_id: int
+    gallery_product_id: int
+    quantity: int
+    added_at: Optional[datetime]
+
+    # Denormalised product fields for convenience
+    product_title: Optional[str] = None
+    product_price: Optional[Decimal] = None
+    product_image_url: Optional[str] = None
+    product_status: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CartResponse(BaseModel):
+    """
+    Full cart returned to the client, including all line items and computed total.
+    """
+    id: int
+    account_id: int
+    items: list[CartItemResponse]
+    total_items: int
+    total_price: Decimal
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)

@@ -73,3 +73,36 @@ class GalleryProduct(Base):
 
     def __repr__(self) -> str:
         return f"<GalleryProduct(id={self.id}, title='{self.title}', status='{self.status}')>"
+
+
+class Cart(Base):
+    """
+    SQLAlchemy model representing a user's shopping cart.
+    One cart per user (created on first add-to-cart).
+    """
+    __tablename__ = "carts"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Cart(id={self.id}, account_id={self.account_id})>"
+
+
+class CartItem(Base):
+    """
+    SQLAlchemy model representing a single line item inside a cart.
+    Each row links a Cart to a GalleryProduct with a quantity.
+    """
+    __tablename__ = "cart_items"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    cart_id = Column(Integer, ForeignKey("carts.id", ondelete="CASCADE"), nullable=False, index=True)
+    gallery_product_id = Column(Integer, ForeignKey("gallery_products.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1, server_default="1")
+    added_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<CartItem(id={self.id}, cart_id={self.cart_id}, gallery_product_id={self.gallery_product_id}, qty={self.quantity})>"

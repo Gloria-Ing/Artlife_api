@@ -7,7 +7,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
-from app.routers import auth, products
+from app.routers import auth, products, cart
 
 UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -157,6 +157,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 # Root paths: /register, /admin/register, /login, /me, /accounts, /gallery/products
 app.include_router(auth.router)
 app.include_router(products.router)
+app.include_router(cart.router)
 
 # Prefix aliases: /auth/register, /auth/admin/register, /auth/login, /auth/me
 app.include_router(auth.router, prefix="/auth", tags=["Authentication & Accounts (Alias)"])
@@ -186,6 +187,11 @@ def root():
             "gallery_products": "GET /gallery/products",
             "create_product": "POST /gallery/products (requires admin Bearer token)",
             "health": "GET /health",
+            "cart": "GET /cart (requires Bearer token)",
+            "cart_add": "POST /cart/items (requires Bearer token)",
+            "cart_update": "PUT /cart/items/{item_id} (requires Bearer token)",
+            "cart_remove_item": "DELETE /cart/items/{item_id} (requires Bearer token)",
+            "cart_clear": "DELETE /cart (requires Bearer token)",
         },
     }
 
