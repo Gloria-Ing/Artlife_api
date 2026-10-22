@@ -89,6 +89,18 @@ def ensure_gallery_product_schema() -> None:
         else:
             statements.append("ALTER TABLE gallery_products ADD COLUMN image_url VARCHAR(500)")
 
+    if "image_data" not in existing_columns:
+        if dialect == "postgresql":
+            statements.append("ALTER TABLE gallery_products ADD COLUMN IF NOT EXISTS image_data BYTEA")
+        else:
+            statements.append("ALTER TABLE gallery_products ADD COLUMN image_data BLOB")
+
+    if "image_content_type" not in existing_columns:
+        if dialect == "postgresql":
+            statements.append("ALTER TABLE gallery_products ADD COLUMN IF NOT EXISTS image_content_type VARCHAR(100)")
+        else:
+            statements.append("ALTER TABLE gallery_products ADD COLUMN image_content_type VARCHAR(100)")
+
     if not statements:
         return
 

@@ -1,8 +1,11 @@
+import io
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi.responses import FileResponse
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -24,6 +27,50 @@ ALLOWED_IMAGE_TYPES = {
 }
 
 
+def optimize_image_bytes(image: UploadFile) -> tuple[bytes, str]:
+    """
+    Read uploaded image and optimize it to high quality yet lightweight format (<250KB).
+    Returns (optimized_bytes, content_type).
+    """
+    raw_bytes = image.file.read()
+    content_type = image.content_type or "image/jpeg"
+
+    # Preserve animated gifs as-is
+    if content_type == "image/gif":
+        return raw_bytes, content_type
+
+    try:
+        pil_image = Image.open(io.BytesIO(raw_bytes))
+
+        # Check if the image contains transparency
+        has_transparency = (
+            pil_image.mode in ("RGBA", "LA")
+            or (pil_image.mode == "P" and "transparency" in pil_image.info)
+        )
+
+        if has_transparency:
+            out_format = "PNG"
+            out_content_type = "image/png"
+        else:
+            pil_image = pil_image.convert("RGB")
+            out_format = "JPEG"
+            out_content_type = "image/jpeg"
+
+        # Downscale oversized photos to max 1600x1600 maintaining aspect ratio
+        pil_image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+
+        out_buf = io.BytesIO()
+        if out_format == "JPEG":
+            pil_image.save(out_buf, format="JPEG", quality=85, optimize=True)
+        else:
+            pil_image.save(out_buf, format="PNG", optimize=True)
+
+        return out_buf.getvalue(), out_content_type
+    except Exception:
+        # Fallback to raw bytes if PIL processing fails
+        return raw_bytes, content_type
+
+
 @router.get(
     "/gallery/products",
     response_model=list[GalleryProductResponse],
@@ -40,6 +87,91 @@ def list_gallery_products(db: Session = Depends(get_db)):
         .filter(GalleryProduct.status.in_(GALLERY_STATUSES))
         .order_by(GalleryProduct.created_at.desc(), GalleryProduct.id.desc())
         .all()
+    )
+
+
+@router.get(
+    "/gallery/products/{product_id}/image",
+    summary="Get artwork image binary",
+    description="Stream the persistent artwork image directly from PostgreSQL or disk cache.",
+    responses={
+        200: {
+            "content": {
+                "image/jpeg": {},
+                "image/png": {},
+                "image/webp": {},
+                "image/gif": {},
+            },
+            "description": "Artwork image binary.",
+        },
+        404: {"description": "Product or image not found."},
+    },
+)
+def get_gallery_product_image(product_id: int, db: Session = Depends(get_db)):
+    """
+    Public image endpoint that serves artwork images directly from PostgreSQL.
+    Survives container sleep/restarts on cloud platforms like Render.
+    """
+    product = db.query(GalleryProduct).filter(GalleryProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gallery product not found.",
+        )
+
+    # 1. Primary: serve persistent bytes from PostgreSQL
+    if product.image_data:
+        return Response(
+            content=product.image_data,
+            media_type=product.image_content_type or "image/jpeg",
+            headers={
+                "Cache-Control": "public, max-age=604800, immutable",
+            },
+        )
+
+    # 2. Secondary fallback: check local uploads directory
+    if product.image_url and product.image_url.startswith("/uploads/"):
+        file_path = UPLOAD_DIR / Path(product.image_url).name
+        if file_path.is_file():
+            return FileResponse(
+                path=file_path,
+                media_type=product.image_content_type or "image/jpeg",
+                headers={
+                    "Cache-Control": "public, max-age=604800, immutable",
+                },
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Image not found for this product.",
+    )
+
+
+@router.get(
+    "/uploads/gallery/{filename}",
+    include_in_schema=False,
+)
+def get_legacy_gallery_image(filename: str, db: Session = Depends(get_db)):
+    """
+    Fallback endpoint for existing records pointing to /uploads/gallery/{filename}.
+    Checks disk first, then falls back to database image_data if present.
+    """
+    file_path = UPLOAD_DIR / filename
+    if file_path.is_file():
+        return FileResponse(path=file_path)
+
+    target_url = f"/uploads/gallery/{filename}"
+    product = db.query(GalleryProduct).filter(GalleryProduct.image_url == target_url).first()
+    if product and product.image_data:
+        return Response(
+            content=product.image_data,
+            media_type=product.image_content_type or "image/jpeg",
+            headers={"Cache-Control": "public, max-age=604800, immutable"},
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Image not found.",
     )
 
 
@@ -74,6 +206,7 @@ def create_gallery_product(
 ):
     """
     Endpoint for admins to add an artwork to the gallery.
+    Stores image binary in PostgreSQL to persist across Render sleep/restarts.
     """
     if image.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -83,17 +216,23 @@ def create_gallery_product(
 
     extension = ALLOWED_IMAGE_TYPES[image.content_type]
     filename = f"{uuid4().hex}{extension}"
-    image_path = UPLOAD_DIR / filename
+    image_bytes, image_content_type = optimize_image_bytes(image)
 
-    with image_path.open("wb") as destination:
-        while chunk := image.file.read(1024 * 1024):
-            destination.write(chunk)
+    # Cache locally to disk
+    try:
+        image_path = UPLOAD_DIR / filename
+        with image_path.open("wb") as destination:
+            destination.write(image_bytes)
+    except Exception:
+        pass
 
     product = GalleryProduct(
         title=title.strip(),
         series=series.strip(),
         price=price,
-        image_url=f"/uploads/gallery/{filename}",
+        image_url="",
+        image_data=image_bytes,
+        image_content_type=image_content_type,
         category=category,
         year=year.strip(),
         medium="",
@@ -104,6 +243,11 @@ def create_gallery_product(
         created_by_id=current_admin.id,
     )
     db.add(product)
+    db.commit()
+    db.refresh(product)
+
+    # Set persistent database-backed URL
+    product.image_url = f"/gallery/products/{product.id}/image"
     db.commit()
     db.refresh(product)
     return product
@@ -154,13 +298,18 @@ def update_gallery_product(
 
         extension = ALLOWED_IMAGE_TYPES[image.content_type]
         filename = f"{uuid4().hex}{extension}"
-        image_path = UPLOAD_DIR / filename
+        image_bytes, image_content_type = optimize_image_bytes(image)
 
-        with image_path.open("wb") as destination:
-            while chunk := image.file.read(1024 * 1024):
-                destination.write(chunk)
+        try:
+            image_path = UPLOAD_DIR / filename
+            with image_path.open("wb") as destination:
+                destination.write(image_bytes)
+        except Exception:
+            pass
 
-        product.image_url = f"/uploads/gallery/{filename}"
+        product.image_data = image_bytes
+        product.image_content_type = image_content_type
+        product.image_url = f"/gallery/products/{product.id}/image"
 
     product.title = title.strip()
     product.series = series.strip()

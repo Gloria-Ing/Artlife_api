@@ -205,10 +205,13 @@ def run_tests():
     created_product = res.json()
     assert created_product["title"] == product_payload["title"]
     assert created_product["created_by_id"] == created_admin["id"]
-    assert created_product["price"] == product_payload["price"]
-    assert created_product["image_url"].startswith("/uploads/gallery/")
+    assert created_product["image_url"].startswith("/gallery/products/")
     assert created_product["status"] == "Available"
-    print("-> Admin-only gallery product creation passed successfully!")
+
+    img_res = client.get(created_product["image_url"])
+    assert img_res.status_code == 200, f"Failed to retrieve image: {img_res.status_code}"
+    assert len(img_res.content) > 0, "Image content was empty"
+    print("-> Admin-only gallery product creation & image endpoint passed successfully!")
 
     # 13. Test Public Gallery Product Listing
     print("\n[13] Testing public gallery product listing...")

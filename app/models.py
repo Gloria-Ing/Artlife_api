@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, LargeBinary, Numeric, String, Text
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -58,6 +58,8 @@ class GalleryProduct(Base):
     series = Column(String(150), nullable=False)
     price = Column(Numeric(10, 2), nullable=True)
     image_url = Column(String(500), nullable=True)
+    image_data = Column(LargeBinary, nullable=True)
+    image_content_type = Column(String(100), nullable=True)
     category = Column(String(50), nullable=False)
     year = Column(String(20), nullable=False)
     medium = Column(String(120), nullable=False)
