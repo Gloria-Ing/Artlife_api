@@ -7,7 +7,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
-from app.routers import auth, products, cart, guest_cart
+from app.routers import auth, products, cart
 
 UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -158,7 +158,6 @@ app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.include_router(auth.router)
 app.include_router(products.router)
 app.include_router(cart.router)
-app.include_router(guest_cart.router)
 
 # Prefix aliases: /auth/register, /auth/admin/register, /auth/login, /auth/me
 app.include_router(auth.router, prefix="/auth", tags=["Authentication & Accounts (Alias)"])
@@ -188,17 +187,12 @@ def root():
             "gallery_products": "GET /gallery/products",
             "create_product": "POST /gallery/products (requires admin Bearer token)",
             "health": "GET /health",
-            "cart": "GET /cart (requires Bearer token)",
-            "cart_add": "POST /cart/items (requires Bearer token)",
-            "cart_update": "PUT /cart/items/{item_id} (requires Bearer token)",
-            "cart_remove_item": "DELETE /cart/items/{item_id} (requires Bearer token)",
-            "cart_clear": "DELETE /cart (requires Bearer token)",
-            "guest_cart": "GET /guest/cart (session cookie)",
-            "guest_cart_add": "POST /guest/cart/items (session cookie)",
-            "guest_cart_update": "PUT /guest/cart/items/{item_id} (session cookie)",
-            "guest_cart_remove": "DELETE /guest/cart/items/{item_id} (session cookie)",
-            "guest_cart_clear": "DELETE /guest/cart (session cookie)",
-            "cart_merge": "POST /cart/merge (Bearer token + session cookie)",
+            "cart": "GET /cart (no login required)",
+            "cart_add": "POST /cart/items (no login required)",
+            "cart_update": "PUT /cart/items/{item_id} (no login required)",
+            "cart_remove_item": "DELETE /cart/items/{item_id} (no login required)",
+            "cart_clear": "DELETE /cart (no login required)",
+            "cart_merge": "POST /cart/merge (Bearer token + session cookie - after login)",
         },
     }
 
