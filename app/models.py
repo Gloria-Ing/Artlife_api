@@ -106,3 +106,36 @@ class CartItem(Base):
 
     def __repr__(self) -> str:
         return f"<CartItem(id={self.id}, cart_id={self.cart_id}, gallery_product_id={self.gallery_product_id}, qty={self.quantity})>"
+
+
+class GuestCart(Base):
+    """
+    SQLAlchemy model representing an anonymous (guest) shopping cart.
+    Identified by a session_id UUID cookie — no account required.
+    One cart per session_id.
+    """
+    __tablename__ = "guest_carts"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    session_id = Column(String(64), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<GuestCart(id={self.id}, session_id='{self.session_id}')>"
+
+
+class GuestCartItem(Base):
+    """
+    SQLAlchemy model representing a single line item inside a guest cart.
+    """
+    __tablename__ = "guest_cart_items"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    guest_cart_id = Column(Integer, ForeignKey("guest_carts.id", ondelete="CASCADE"), nullable=False, index=True)
+    gallery_product_id = Column(Integer, ForeignKey("gallery_products.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1, server_default="1")
+    added_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<GuestCartItem(id={self.id}, guest_cart_id={self.guest_cart_id}, gallery_product_id={self.gallery_product_id}, qty={self.quantity})>"

@@ -9,25 +9,29 @@ Routes:
   PUT    /cart/items/{item_id}            - Update quantity of a specific cart item
   DELETE /cart/items/{item_id}            - Remove a single item from the cart
   DELETE /cart                            - Clear the entire cart
+  POST   /cart/merge                      - Merge guest cart into user's cart after login
 """
 
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, Cart, CartItem, GalleryProduct
+from app.models import Account, Cart, CartItem, GalleryProduct, GuestCart, GuestCartItem
 from app.schemas import (
     CartItemAdd,
     CartItemResponse,
     CartItemUpdate,
+    CartMergeResponse,
     CartResponse,
     MessageResponse,
 )
 from app.security import get_current_user
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
+
+SESSION_COOKIE = "artlife_session_id"
 
 
 # ---------------------------------------------------------
@@ -242,3 +246,92 @@ def clear_cart(
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
     db.commit()
     return {"message": "Cart cleared successfully."}
+
+
+@router.post(
+    "/merge",
+    response_model=CartMergeResponse,
+    summary="Merge guest cart into user cart",
+    description=(
+        "After a guest logs in or registers, call this endpoint to fold all items "
+        "from their guest session cart into their authenticated account cart. "
+        "If a product already exists in the account cart the quantities are summed. "
+        "The guest cart is cleared after a successful merge. "
+        "Requires a valid Bearer token and the artlife_session_id cookie."
+    ),
+)
+def merge_guest_cart(
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: Account = Depends(get_current_user),
+    session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+) -> CartMergeResponse:
+    if not session_id:
+        # No guest session - nothing to merge, just return the current cart
+        cart = _get_or_create_cart(current_user.id, db)
+        return CartMergeResponse(
+            message="No guest cart found to merge.",
+            items_merged=0,
+            cart=_build_cart_response(cart, db),
+        )
+
+    guest_cart = db.query(GuestCart).filter(GuestCart.session_id == session_id).first()
+    if not guest_cart:
+        cart = _get_or_create_cart(current_user.id, db)
+        return CartMergeResponse(
+            message="No guest cart found to merge.",
+            items_merged=0,
+            cart=_build_cart_response(cart, db),
+        )
+
+    guest_items = db.query(GuestCartItem).filter(
+        GuestCartItem.guest_cart_id == guest_cart.id
+    ).all()
+
+    if not guest_items:
+        cart = _get_or_create_cart(current_user.id, db)
+        return CartMergeResponse(
+            message="Guest cart was empty, nothing to merge.",
+            items_merged=0,
+            cart=_build_cart_response(cart, db),
+        )
+
+    cart = _get_or_create_cart(current_user.id, db)
+    merged_count = 0
+
+    for guest_item in guest_items:
+        # Skip products that no longer exist or are unavailable
+        product = db.query(GalleryProduct).filter(
+            GalleryProduct.id == guest_item.gallery_product_id
+        ).first()
+        if not product or product.status != "Available":
+            continue
+
+        existing = db.query(CartItem).filter(
+            CartItem.cart_id == cart.id,
+            CartItem.gallery_product_id == guest_item.gallery_product_id,
+        ).first()
+
+        if existing:
+            existing.quantity += guest_item.quantity
+        else:
+            db.add(CartItem(
+                cart_id=cart.id,
+                gallery_product_id=guest_item.gallery_product_id,
+                quantity=guest_item.quantity,
+            ))
+        merged_count += 1
+
+    # Clear the guest cart after merging
+    db.query(GuestCartItem).filter(GuestCartItem.guest_cart_id == guest_cart.id).delete()
+    db.commit()
+    db.refresh(cart)
+
+    # Expire the session cookie so the browser drops it
+    response.delete_cookie(key=SESSION_COOKIE)
+
+    return CartMergeResponse(
+        message=f"Successfully merged {merged_count} item(s) from guest cart.",
+        items_merged=merged_count,
+        cart=_build_cart_response(cart, db),
+    )

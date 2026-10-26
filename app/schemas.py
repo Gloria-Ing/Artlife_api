@@ -424,3 +424,50 @@ class CartResponse(BaseModel):
     updated_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# -----------------------------------------
+# Guest Cart Schemas
+# -----------------------------------------
+
+class GuestCartItemResponse(BaseModel):
+    """
+    Single guest cart line item returned to the client.
+    """
+    id: int
+    guest_cart_id: int
+    gallery_product_id: int
+    quantity: int
+    added_at: Optional[datetime]
+
+    # Denormalised product fields for convenience
+    product_title: Optional[str] = None
+    product_price: Optional[Decimal] = None
+    product_image_url: Optional[str] = None
+    product_status: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GuestCartResponse(BaseModel):
+    """
+    Full guest cart returned to the client, including all line items and computed total.
+    """
+    id: int
+    session_id: str
+    items: list[GuestCartItemResponse]
+    total_items: int
+    total_price: Decimal
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CartMergeResponse(BaseModel):
+    """
+    Response returned after merging a guest cart into an authenticated user's cart.
+    """
+    message: str
+    items_merged: int
+    cart: "CartResponse"
